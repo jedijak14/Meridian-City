@@ -441,6 +441,169 @@ function rampageJob(g: Game): MissionRun | null {
   return run;
 }
 
+// ---------------------------------------------------------------- COURIER
+/** A multi-stop package run: fast, route-based, with a mid-run ambush. */
+function courierJob(g: Game): MissionRun | null {
+  const stops: { x: number; z: number }[] = [];
+  for (let k = 0; k < 4; k++) {
+    const s = nodeSpot(g, 110 + k * 55, 230 + k * 95);
+    stops.push({ x: s.x, z: s.z });
+  }
+  let idx = 0;
+  let cool = 0; // stops two nearby packages from being collected in the same frame
+  let routeLen = Math.hypot(stops[0].x - g.player.x, stops[0].z - g.player.z);
+  for (let k = 1; k < stops.length; k++) routeLen += Math.hypot(stops[k].x - stops[k - 1].x, stops[k].z - stops[k - 1].z);
+  let marker: Marker | null = null;
+  const ambush: Ped[] = [];
+  const place = (k: number) => {
+    g.removeMarker(marker);
+    marker = g.addMarker({
+      x: stops[k].x, z: stops[k].z, color: 0x44ffcc, radius: k === stops.length - 1 ? 9 : 7,
+      label: k === stops.length - 1 ? 'DROP' : `PKG ${k + 1}/${stops.length}`, kind: 'objective', auto: false, icon: '📦',
+    });
+  };
+  const run: MissionRun = {
+    title: 'Package Run',
+    objective: `Collect package 1 / ${stops.length}`,
+    timer: Math.round(routeLen / 11 + 55),
+    update(dt) {
+      run.timer = Math.max(0, (run.timer || 0) - dt);
+      cool = Math.max(0, cool - dt);
+      const cur = stops[idx];
+      if (cool <= 0 && g.near(cur.x, cur.z, 9)) {
+        idx++;
+        cool = 1.2;
+        g.audio.ui();
+        if (idx >= stops.length) {
+          g.completeMission(Math.round(2100 + (run.timer || 0) * 20), 'PACKAGES DELIVERED');
+          return;
+        }
+        place(idx);
+        run.objective = `Collect package ${idx + 1} / ${stops.length}`;
+        g.toast(`Package ${idx} secured · ${stops.length} stop run`);
+        if (idx === 2 && ambush.length === 0) {
+          for (let k = 0; k < 2; k++) {
+            const p = g.spawnPed('gang', cur.x + rand(-7, 7), cur.z + rand(-7, 7), { mission: true });
+            p.provoked = true;
+            ambush.push(p);
+          }
+          g.say('Dispatcher', 'Heads up — somebody knows about the merchandise. Watch your back!', 4);
+          g.addHeat(8, 'deal');
+        }
+      }
+      if ((run.timer || 0) <= 0) g.failMission('The buyer got tired of waiting.');
+      if (g.player.dead) g.failMission('You died.');
+    },
+    cleanup() {
+      g.removeMarker(marker);
+      for (const p of ambush) p.mission = false;
+    },
+    blips: () => (idx < stops.length ? [{ ...stops[idx], color: '#44ffcc' }] : []),
+  };
+  place(0);
+  g.say('Dispatcher', `${stops.length} pickups, one buyer, no questions. Clock's running — move.`, 5);
+  return run;
+}
+
+// ---------------------------------------------------------------- VIGILANTE
+/** Borrow a cruiser, clear waves of armed suspects before the clock runs out. */
+function vigilanteJob(g: Game): MissionRun | null {
+  const car = ensureVehicle(g, 'police');
+  const suspects: Ped[] = [];
+  const goal = 8;
+  const maxSpawned = 24;
+  let kills = 0;
+  let spawned = 0;
+  let waveT = 0;
+  const spawnWave = () => {
+    const s = nodeSpot(g, 35, 120);
+    const n = Math.min(3, maxSpawned - spawned);
+    for (let k = 0; k < n; k++) {
+      const p = g.spawnPed('gang', s.x + rand(-6, 6), s.z + rand(-6, 6), { mission: true });
+      p.provoked = true;
+      p.setWeapon(Math.random() < 0.5 ? 'pistol' : 'smg');
+      suspects.push(p);
+      spawned++;
+    }
+    g.toast('Suspects spotted — check your minimap');
+  };
+  const run: MissionRun = {
+    title: 'Night Watch',
+    objective: 'Get in the cruiser',
+    timer: 150,
+    update(dt) {
+      run.timer = Math.max(0, (run.timer || 0) - dt);
+      run.objective = `Take down suspects — ${kills} / ${goal}`;
+      waveT -= dt;
+      const alive = suspects.filter((p) => !p.dead).length;
+      if (alive === 0 && waveT <= 0 && kills < goal) {
+        if (spawned >= maxSpawned) { g.failMission('No suspects left to catch.'); return; }
+        spawnWave();
+        waveT = 2;
+      }
+      if (kills >= goal) g.completeMission(3200 + Math.round((run.timer || 0) * 14), 'STREETS CLEANED');
+      else if ((run.timer || 0) <= 0) g.failMission('The suspects slipped away.');
+      else if (g.player.dead) g.failMission('You died.');
+    },
+    onKill(p) {
+      if (p.killedByPlayer && p.kind === 'gang') kills++;
+    },
+    cleanup() {
+      if (car) car.keep = false;
+      for (const p of suspects) p.mission = false;
+    },
+    blips: () => suspects.filter((p) => !p.dead).map((p) => ({ x: p.x, z: p.z, color: '#ff5555' })),
+  };
+  g.player.give('shotgun', 60);
+  g.toast('Equipment issued: Pump Shotgun');
+  g.say('Dispatcher', 'Metro PD is shorthanded. Cruiser is yours — clear the marked suspects before they vanish.', 5);
+  spawnWave();
+  return run;
+}
+
+// ---------------------------------------------------------------- DEMOLITION
+/** Destroy a convoy of marked vehicles with a supplied rocket launcher. */
+function demolitionJob(g: Game): MissionRun | null {
+  const targets: Vehicle[] = [];
+  const bodyTypes = ['sports', 'muscle', 'suv', 'van', 'sedan'];
+  for (let k = 0; k < 5; k++) {
+    const s = nodeSpot(g, 90 + k * 45, 220 + k * 85);
+    const rp = g.roadPoint(s.x, s.z);
+    const v = g.spawnVehicle(bodyTypes[k % bodyTypes.length], rp.x + rand(-3, 3), rp.z + rand(-3, 3), rp.yaw, { keep: true });
+    v.ai = makeAI('idle', 0, 0, 0, 0, 0);
+    targets.push(v);
+  }
+  let destroyed = 0;
+  const run: MissionRun = {
+    title: 'Insurance Job',
+    objective: `Destroy 5 marked vehicles — 0 / 5`,
+    timer: 165,
+    update(dt) {
+      run.timer = Math.max(0, (run.timer || 0) - dt);
+      let now = 0;
+      for (const v of targets) if (v.exploded || v.hp <= 0) now++;
+      if (now > destroyed) {
+        destroyed = now;
+        g.addHeat(7, 'explosion', true);
+        g.audio.success();
+      }
+      run.objective = `Destroy 5 marked vehicles — ${destroyed} / 5`;
+      if (destroyed >= targets.length) g.completeMission(3600 + Math.round((run.timer || 0) * 16), 'CONVOY SCRAPPED');
+      else if ((run.timer || 0) <= 0) g.failMission('The convoy made it out of the city.');
+      else if (g.player.dead) g.failMission('You died.');
+    },
+    cleanup() {
+      for (const v of targets) v.keep = false;
+    },
+    blips: () => targets.filter((v) => !v.exploded && v.hp > 0).map((v) => ({ x: v.x, z: v.z, color: '#ff8833' })),
+  };
+  g.player.give('rpg', 12);
+  g.player.select('rpg', g);
+  g.toast('Equipment issued: Rocket Launcher');
+  g.say('Fixer', 'Five cars, one policy, zero witnesses. Torch them before they leave town.', 5);
+  return run;
+}
+
 export const JOBS: Record<string, MissionDef> = {
   story: { id: 'story', name: 'The Meridian Job', desc: 'Story — Rob the Meridian Bank', icon: '★', color: 0xffd400, hex: '#ffd400', story: true, start: storyHeist },
   taxi: { id: 'taxi', name: 'Taxi Fare', desc: 'Pick up and deliver passengers', icon: 'T', color: 0xffaa00, hex: '#ffaa00', start: taxiJob },
@@ -448,6 +611,9 @@ export const JOBS: Record<string, MissionDef> = {
   race: { id: 'race', name: 'Street Race', desc: 'Beat rivals through the city', icon: '⚑', color: 0x33aaff, hex: '#33aaff', start: raceJob },
   theft: { id: 'theft', name: 'Car Theft', desc: 'Steal a supercar and deliver it', icon: '🚗', color: 0xcc44ff, hex: '#cc44ff', start: theftJob },
   rampage: { id: 'rampage', name: 'Rampage', desc: 'Cause chaos against the clock', icon: '☢', color: 0xff7722, hex: '#ff7722', start: rampageJob },
+  courier: { id: 'courier', name: 'Package Run', desc: 'Four pickups, one buyer, no questions', icon: '📦', color: 0x44ffcc, hex: '#44ffcc', start: courierJob },
+  vigilante: { id: 'vigilante', name: 'Night Watch', desc: 'Borrow a cruiser and clear the suspects', icon: '🛡', color: 0x5599ff, hex: '#5599ff', start: vigilanteJob },
+  demolition: { id: 'demolition', name: 'Insurance Job', desc: 'Scrap a marked convoy with an RPG', icon: '💥', color: 0xff8833, hex: '#ff8833', start: demolitionJob },
 };
 
 export const JOB_SPOTS: { id: string; i: number; j: number }[] = [
@@ -463,6 +629,12 @@ export const JOB_SPOTS: { id: string; i: number; j: number }[] = [
   { id: 'rampage', i: 13, j: 3 },
   { id: 'theft', i: 3, j: 3 },
   { id: 'taxi', i: 2, j: 13 },
+  { id: 'courier', i: 5, j: 11 },
+  { id: 'vigilante', i: 11, j: 12 },
+  { id: 'demolition', i: 12, j: 6 },
+  { id: 'courier', i: 4, j: 5 },
+  { id: 'vigilante', i: 2, j: 9 },
+  { id: 'demolition', i: 10, j: 14 },
 ];
 
 export const SERVICE_SPOTS: { id: 'ammu' | 'spray' | 'safe'; i: number; j: number; label: string; color: number; icon: string }[] = [

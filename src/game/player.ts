@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game } from './Game';
 import { Character, P, randomLook } from './character';
 import { Vehicle } from './vehicle';
-import { WMAP, makeWeaponMesh } from './weapons';
+import { WMAP, WEAPONS, makeWeaponMesh } from './weapons';
 import { angDiff, clamp, damp, rand } from './util';
 import { makeAI } from './traffic';
 
@@ -225,7 +225,8 @@ export class Player {
     const start = cam.position.clone().addScaledVector(dir, g.firstPerson ? 0.3 : g.camDist + 0.4);
     const muzzle = g.muzzlePos();
     if (w.kind === 'hitscan') {
-      g.audio.gun(w.snd);
+      const quiet = !!w.silenced;
+      g.audio.gun(w.snd, quiet ? 0.4 : 1);
       const spreadMul = (this.aiming ? 0.45 : 1) * (this.speed > 3 ? 1.5 : 1) * (this.grounded ? 1 : 1.8);
       let hitOne = false;
       for (let i = 0; i < w.pellets; i++) {
@@ -238,9 +239,9 @@ export class Player {
         hitOne = hitOne || hit.kind === 'ped';
       }
       void hitOne;
-      g.muzzleFlash(muzzle, w.id === 'shotgun' || w.id === 'sniper' ? 1.6 : 1);
-      g.noise(this.x, this.z, 55, true);
-      g.addHeat(0.28, 'gunfire', true);
+      g.muzzleFlash(muzzle, quiet ? 0.3 : w.id === 'shotgun' || w.id === 'sniper' ? 1.6 : 1);
+      g.noise(this.x, this.z, quiet ? 14 : 55, true);
+      if (!quiet) g.addHeat(0.28, 'gunfire', true); else g.addHeat(0.03, 'suppressed shot', true);
       this.kick += w.recoil * 6;
       g.camPitch += w.recoil * (0.5 + Math.random() * 0.5);
       g.camYaw += (Math.random() - 0.5) * w.recoil * 0.6;
@@ -360,4 +361,4 @@ export class Player {
   }
 }
 
-const ids = ['fist', 'bat', 'pistol', 'magnum', 'smg', 'shotgun', 'ak', 'sniper', 'minigun', 'grenade', 'rpg', 'flame'];
+const ids = WEAPONS.map((w) => w.id);

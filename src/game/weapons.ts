@@ -20,6 +20,8 @@ export interface WDef {
   zoom: number;
   twoHand: boolean;
   desc: string;
+  /** Suppressed weapons are quieter and raise far less heat when fired. */
+  silenced?: boolean;
 }
 
 export const WEAPONS: WDef[] = [
@@ -35,6 +37,7 @@ export const WEAPONS: WDef[] = [
   { id: 'grenade', name: 'Grenades', kind: 'grenade', dmg: 0, rate: 1, mag: 1, buy: 5, spread: 0, pellets: 1, range: 30, auto: false, recoil: 0, reload: 0.4, price: 700, snd: 'melee', zoom: 1, twoHand: false, desc: 'Pull pin. Throw.' },
   { id: 'rpg', name: 'Rocket Launcher', kind: 'rocket', dmg: 0, rate: 0.6, mag: 1, buy: 4, spread: 0, pellets: 1, range: 300, auto: false, recoil: 0.1, reload: 2.2, price: 6000, snd: 'rocket', zoom: 1.2, twoHand: true, desc: 'Boom. Everything goes boom.' },
   { id: 'flame', name: 'Flamethrower', kind: 'flame', dmg: 0, rate: 30, mag: 150, buy: 300, spread: 0.1, pellets: 1, range: 11, auto: true, recoil: 0, reload: 3, price: 5000, snd: 'flame', zoom: 1.15, twoHand: true, desc: 'Burn it all.' },
+  { id: 'silenced', name: 'Whisper .45', kind: 'hitscan', dmg: 32, rate: 3.6, mag: 15, buy: 60, spread: 0.009, pellets: 1, range: 150, auto: false, recoil: 0.012, reload: 1.4, price: 2400, snd: 'pistol', zoom: 1.3, twoHand: false, desc: 'Suppressed. Quiet kills, almost no police heat.', silenced: true },
 ];
 export const WMAP: Record<string, WDef> = Object.fromEntries(WEAPONS.map((w) => [w.id, w]));
 
@@ -130,6 +133,13 @@ export function makeWeaponMesh(id: string): THREE.Group | null {
       g.add(cone);
       part(0.04, 0.1, 0.05, 0, -0.06, 0.05, '#111');
       len = 0.9;
+      break;
+    case 'silenced':
+      part(0.045, 0.055, 0.22, 0, 0.03, 0.1, '#1c1e24');
+      cyl(0.031, 0.3, 0, 0.045, 0.35, '#0e0f12', 0.3);
+      part(0.04, 0.1, 0.05, 0, -0.05, 0.0, '#0e0f12', 0.2, 0.8);
+      part(0.02, 0.012, 0.03, 0, 0.065, 0.2, '#5a6270', 0.9, 0.3);
+      len = 0.45;
       break;
     case 'flame':
       cyl(0.03, 0.55, 0, 0.02, 0.28, '#444');

@@ -34,7 +34,8 @@ export function ControlsPanel({ onBack }: { onBack: () => void }) {
       </div>
       <p className="mt-5 text-xs leading-relaxed text-white/50">
         Tip: Hit <b className="text-white/80">T</b> for bullet time. Explosions, headshots and big crashes trigger automatic slow-motion. Cops respond to your crimes — lose them
-        by breaking line of sight, or visit a Pay 'n' Spray.
+        by breaking line of sight, or visit a Pay 'n' Spray. Pause with <b className="text-white/80">Esc</b> to open <b className="text-white/80">Career &amp; Empire</b>:
+        ranks, achievements and businesses that pay you while you play.
       </p>
     </Panel>
   );
@@ -175,9 +176,9 @@ export function MainMenu({ game, hasSave, onNew, onContinue, ready }: { game: Ga
 
         <div className="gta-fade flex flex-wrap items-end justify-between gap-4 text-[11px] uppercase tracking-[0.3em] text-white/45">
           <div className="flex flex-wrap gap-x-6 gap-y-1">
-            <span>◆ 12 weapons</span><span>◆ 6 job types</span><span>◆ Ragdoll physics</span><span>◆ Soft-body damage</span><span>◆ Bullet time</span>
+            <span>◆ 13 weapons</span><span>◆ 9 job types</span><span>◆ Career ranks</span><span>◆ Achievements</span><span>◆ Real estate</span><span>◆ Bullet time</span>
           </div>
-          <div>Port of the imagination • v1.0</div>
+          <div>Career Update • v1.1</div>
         </div>
       </div>
     </div>

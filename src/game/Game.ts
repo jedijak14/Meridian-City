@@ -11,6 +11,7 @@ import { makeAI, driveAI, roadSpawn, snapAI } from './traffic';
 import { WMAP, WEAPONS, makeWeaponMesh, WDef } from './weapons';
 import * as C from './combat';
 import { JOBS, JOB_SPOTS, SERVICE_SPOTS, MissionRun, introShots } from './missions';
+import { Career, type CareerView } from './career';
 
 export interface Marker {
   id: number; x: number; z: number; color: number; radius: number; label?: string;
@@ -32,6 +33,7 @@ export interface Hud {
   crosshair: boolean; firstPerson: boolean; hit: number; kills: number; mapZoom: number; fps: number;
   shop: { id: string; name: string; desc: string; price: number; owned: boolean; ammoPrice: number; ammo: number }[] | null;
   weaponsOwned: { id: string; name: string; cur: boolean }[]; radio: boolean; wantedLevelName: string;
+  career: CareerView;
 }
 
 const QUAL = {
@@ -78,6 +80,7 @@ export class Game {
   world: World;
   input: Input;
   audio = new GameAudio();
+  career = new Career();
   smoke: Particles;
   fx: Particles;
   player = new Player();
@@ -218,7 +221,7 @@ export class Game {
       [7, 8, 'weapon', 'bat'], [9, 8, 'weapon', 'smg'], [6, 7, 'weapon', 'shotgun'], [10, 10, 'weapon', 'magnum'], [8, 10, 'weapon', 'grenade'],
       [11, 6, 'weapon', 'ak'], [5, 9, 'health'], [9, 6, 'armor'], [8, 6, 'health'], [11, 11, 'armor'], [6, 6, 'weapon', 'sniper'],
       [12, 8, 'weapon', 'rpg'], [4, 8, 'weapon', 'flame'], [13, 10, 'weapon', 'minigun'], [10, 3, 'health'], [3, 12, 'armor'], [7, 12, 'weapon', 'shotgun'],
-      [12, 14, 'weapon', 'ak'], [2, 5, 'weapon', 'smg'], [14, 5, 'health'],
+      [12, 14, 'weapon', 'ak'], [2, 5, 'weapon', 'smg'], [14, 5, 'health'], [10, 12, 'weapon', 'silenced'], [5, 3, 'weapon', 'silenced'],
     ];
     for (const [i, j, t, w] of pk) {
       const p = cornerSpot(i, j);
@@ -270,6 +273,7 @@ export class Game {
     this.completed.clear();
     this.world.setTime(17.3);
     this.resetPlayer();
+    this.career.reset(this);
     this.buildStatics();
     this.focus = { x: this.player.x, z: this.player.z };
     this.populate();
@@ -294,6 +298,8 @@ export class Game {
       this.player.armor = s.armor || 0;
       if (s.time !== undefined) this.world.setTime(s.time);
       this.kills = s.kills || 0;
+      this.career.load(s.career, this);
+      this.player.hp = Math.min(this.career.perks.maxHp, Math.max(1, s.hp ?? this.career.perks.maxHp));
     } catch { /* ignore */ }
     this.cutscene = null;
     this.subtitle = null;
@@ -307,6 +313,7 @@ export class Game {
       localStorage.setItem('meridian_save', JSON.stringify({
         money: this.money, owned: this.player.owned, weapons: this.player.weapons, cur: this.player.cur,
         completed: [...this.completed], time: this.world.time, armor: this.player.armor, kills: this.kills,
+        hp: this.player.hp, career: this.career.serialize(),
       }));
     } catch { /* ignore */ }
   }
@@ -494,8 +501,11 @@ export class Game {
       p.mesh.position.y = 1.0 + Math.sin(p.t * 2.5) * 0.12;
       if (d < (pl.veh ? 3.2 : 1.7) && !pl.dead) {
         let ok = true;
-        if (p.type === 'cash') { this.money += p.value; this.toast(`+$${p.value}`); this.audio.ui(); }
-        else if (p.type === 'health') { if (pl.hp >= 100) ok = false; else { pl.hp = Math.min(100, pl.hp + 50); this.toast('Health +50'); this.audio.ui(); } }
+        if (p.type === 'cash') { this.addMoney(p.value); this.toast(`+$${p.value}`); this.audio.ui(); }
+        else if (p.type === 'health') {
+          const cap = this.career.perks.maxHp;
+          if (pl.hp >= cap) ok = false; else { pl.hp = Math.min(cap, pl.hp + 50); this.toast('Health +50'); this.audio.ui(); }
+        }
         else if (p.type === 'armor') { if (pl.armor >= 100) ok = false; else { pl.armor = 100; this.toast('Body armor'); this.audio.ui(); } }
         else if (p.type === 'weapon') {
           const w = WMAP[p.wid!];
@@ -519,7 +529,7 @@ export class Game {
   say(who: string, text: string, dur = 4) {
     this.subtitle = { who, text, t: dur };
   }
-  addMoney(n: number) { this.money += n; }
+  addMoney(n: number) { this.money += n; this.career.onCash(this, n); }
   vol(x: number, z: number) {
     const d = Math.hypot(x - this.camera.position.x, z - this.camera.position.z);
     return Math.pow(clamp(1 - d / 170, 0, 1), 1.6);
@@ -579,12 +589,14 @@ export class Game {
   }
   completeMission(reward: number, msg: string) {
     if (!this.mission) return;
-    this.money += reward;
-    this.toast(`${msg}  +$${reward.toLocaleString()}`);
+    const pay = this.career.reward(reward);
+    this.addMoney(pay);
+    this.toast(`${msg}  +$${pay.toLocaleString()}`);
     this.audio.success();
     this.completed.add(this.missionId);
     this.mission.cleanup();
     this.mission = null;
+    this.career.onJob(this, pay);
     this.save();
   }
   failMission(reason: string) {
@@ -603,26 +615,29 @@ export class Game {
   closeShop() { this.resume(); }
   buy(id: string) {
     const pl = this.player;
-    if (id === 'armor') { if (this.money >= 300) { this.money -= 300; pl.armor = 100; this.audio.ui(); } return; }
-    if (id === 'health') { if (this.money >= 100) { this.money -= 100; pl.hp = 100; this.audio.ui(); } return; }
+    const armorPrice = this.career.price(300), healthPrice = this.career.price(100);
+    if (id === 'armor') { if (this.money >= armorPrice) { this.money -= armorPrice; pl.armor = 100; this.audio.ui(); } return; }
+    if (id === 'health') { if (this.money >= healthPrice) { this.money -= healthPrice; pl.hp = this.career.perks.maxHp; this.audio.ui(); } return; }
     const w = WMAP[id];
     if (!w) return;
+    const price = this.career.price(w.price);
     if (!pl.owned.includes(id)) {
-      if (this.money >= w.price) { this.money -= w.price; pl.give(id, w.buy); this.audio.ui(); pl.select(id); }
+      if (this.money >= price) { this.money -= price; pl.give(id, w.buy); this.audio.ui(); pl.select(id); }
     } else if (w.kind !== 'melee') {
       const ap = this.ammoPrice(w);
       if (this.money >= ap) { this.money -= ap; pl.give(id, w.buy); this.audio.ui(); }
     }
   }
-  ammoPrice(w: WDef) { return Math.max(40, Math.round((w.price * 0.1) / 10) * 10); }
+  ammoPrice(w: WDef) { return this.career.price(Math.max(40, Math.round((w.price * 0.1) / 10) * 10)); }
+  buyProperty(id: string) { return this.career.buyProperty(this, id); }
   shopItems() {
     const pl = this.player;
     const items = WEAPONS.filter((w) => w.price > 0).map((w) => ({
-      id: w.id, name: w.name, desc: w.desc, price: w.price, owned: pl.owned.includes(w.id), ammoPrice: this.ammoPrice(w),
+      id: w.id, name: w.name, desc: w.desc, price: this.career.price(w.price), owned: pl.owned.includes(w.id), ammoPrice: this.ammoPrice(w),
       ammo: pl.weapons[w.id] ? pl.weapons[w.id].mag + pl.weapons[w.id].reserve : 0,
     }));
-    items.push({ id: 'armor', name: 'Body Armor', desc: 'Absorbs bullets.', price: 300, owned: false, ammoPrice: 0, ammo: 0 });
-    items.push({ id: 'health', name: 'Medkit', desc: 'Restore to full health.', price: 100, owned: false, ammoPrice: 0, ammo: 0 });
+    items.push({ id: 'armor', name: 'Body Armor', desc: 'Absorbs bullets.', price: this.career.price(300), owned: false, ammoPrice: 0, ammo: 0 });
+    items.push({ id: 'health', name: 'Medkit', desc: 'Restore to full health.', price: this.career.price(100), owned: false, ammoPrice: 0, ammo: 0 });
     return items;
   }
   activateMarker(m: Marker) {
@@ -630,7 +645,7 @@ export class Game {
     if (m.kind === 'job') this.startJob(m.jobId!);
     else if (m.serviceId === 'ammu') this.openShop();
     else if (m.serviceId === 'safe') {
-      this.player.hp = 100;
+      this.player.hp = this.career.perks.maxHp;
       this.save();
       this.toast('Game saved. Health restored.');
       this.audio.success();
@@ -712,6 +727,7 @@ export class Game {
     this.evadeT = 0;
   }
   clearWanted() {
+    if (this.stars > 0) this.career.onWantedClear(this, this.stars);
     this.heat = 0;
     this.stars = 0;
     this.evadeT = 0;
@@ -735,7 +751,7 @@ export class Game {
       } else this.heat -= 1.2 * dt;
       this.heat = Math.max(0, this.heat);
       const ns = this.starsFromHeat(this.heat);
-      if (ns < this.stars && ns === 0) { this.toast('Wanted level lost'); this.convertCops(); }
+      if (ns < this.stars && ns === 0) { this.toast('Wanted level lost'); this.career.onWantedClear(this, this.stars); this.convertCops(); }
       this.stars = ns;
     }
   }
@@ -758,6 +774,7 @@ export class Game {
   onPlayerDeath() {
     this.wasted = true;
     this.wastedT = 0;
+    this.career.onDeath(this);
     this.bullet = false;
     this.slowmo(4, 0.25);
     this.audio.fail();
@@ -767,7 +784,7 @@ export class Game {
     const pl = this.player;
     this.wasted = false;
     pl.dead = false;
-    pl.hp = 100;
+    pl.hp = this.career.perks.maxHp;
     pl.armor = 0;
     pl.ragT = 0;
     if (pl.ch.rag) pl.ch.stopRagdoll();
@@ -785,6 +802,7 @@ export class Game {
   onPedDeath(p: Ped, byPlayer: boolean) {
     if (byPlayer || p.killedByPlayer) {
       this.kills++;
+      this.career.onKill(this, true);
       if (p.kind === 'civ') this.addHeat(9, 'murder', true);
       else if (p.kind === 'cop') this.addHeat(24, 'cop killer', false);
       else if (p.kind === 'gang') this.addHeat(1, 'gang', true);
@@ -1368,6 +1386,7 @@ export class Game {
         this.updateWanted(dt);
         this.updateHeli(dt);
         if (this.mission) this.mission.update(dt);
+        if (!this.cutscene && !this.wasted) this.career.tick(this, dt);
         this.computePrompt();
         for (const m of this.markers) {
           m.cool -= dt;
@@ -1494,7 +1513,7 @@ export class Game {
     const hh = Math.floor(this.world.time), mm = Math.floor((this.world.time % 1) * 60);
     const names = ['', 'Suspicious', 'Wanted', 'Dangerous', 'Armed & Dangerous', 'Most Wanted'];
     return {
-      state: this.state, money: this.money, hp: Math.max(0, pl.hp), armor: pl.armor, stars: this.stars, evading: this.stars > 0 && this.evadeT > 0.5,
+      state: this.state, money: this.money, hp: Math.max(0, (pl.hp / this.career.perks.maxHp) * 100), armor: pl.armor, stars: this.stars, evading: this.stars > 0 && this.evadeT > 0.5,
       weapon: w.name, wid: w.id, mag: a?.mag ?? 0, reserve: a?.reserve ?? 0, melee: w.kind === 'melee', reloading: pl.reloadT > 0,
       speed: pl.veh ? Math.round(pl.veh.speed * 3.6) : 0, inVehicle: !!pl.veh, vehName: pl.veh?.t.name || '', hp2: pl.veh ? clamp(pl.veh.hp / pl.veh.t.hp, 0, 1) : 0,
       clock: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
@@ -1508,6 +1527,7 @@ export class Game {
       shop: this.state === 'shop' ? this.shopItems() : null,
       weaponsOwned: pl.owned.map((id) => ({ id, name: WMAP[id].name, cur: id === pl.cur })), radio: this.audio.radioOn,
       wantedLevelName: names[this.stars],
+      career: this.career.view(),
     };
   }
 }

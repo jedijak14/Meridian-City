@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Game, Hud } from '../game/Game';
 import { ControlsPanel, SettingsPanel } from './Menu';
+import { CareerPanel, RankReadout, RankUpBanner } from './Career';
 
 function Stars({ n, flash }: { n: number; flash: boolean }) {
   return (
@@ -57,6 +58,7 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
       <div className="absolute inset-x-0 top-0 bg-black transition-all duration-700 ease-out" style={{ height: cut ? '12vh' : 0 }} />
       <div className="absolute inset-x-0 bottom-0 bg-black transition-all duration-700 ease-out" style={{ height: cut ? '12vh' : 0 }} />
       {cut && <div className="absolute right-6 top-[13vh] text-xs uppercase tracking-[0.3em] text-white/60">Enter — skip</div>}
+      {!cut && !h.wasted && <RankUpBanner h={h} />}
 
       {/* subtitles */}
       {h.subtitle && (
@@ -76,6 +78,7 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
             <div className="text-[42px] font-black leading-none tracking-wide text-emerald-300 drop-shadow-[0_3px_0_rgba(0,0,0,0.6)]">${h.money.toLocaleString()}</div>
             <Stars n={h.stars} flash={h.evading} />
             {h.stars > 0 && <div className={`text-[11px] font-bold uppercase tracking-[0.3em] ${h.evading ? 'gta-flash text-sky-300' : 'text-amber-200'}`}>{h.evading ? 'Evading police…' : h.wantedLevelName}</div>}
+            <RankReadout h={h} />
           </div>
 
           {/* mission */}
@@ -140,7 +143,7 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
               <div className="flex max-w-[420px] flex-wrap justify-end gap-1">
                 {h.weaponsOwned.map((w, i) => (
                   <div key={w.id} className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${w.cur ? 'bg-amber-300 text-black' : 'bg-black/50 text-white/60'}`}>
-                    {(i + 1) % 10} · {w.name}
+                    {i < 10 ? (i + 1) % 10 : '↻'} · {w.name}
                   </div>
                 ))}
               </div>
@@ -188,16 +191,20 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
 }
 
 export function PauseMenu({ game, h }: { game: Game; h: Hud }) {
-  const [view, setView] = useState<'main' | 'controls' | 'settings'>('main');
+  const [view, setView] = useState<'main' | 'controls' | 'settings' | 'career'>('main');
+  if (view === 'career') return <CareerPanel game={game} h={h} onBack={() => setView('main')} />;
   return (
     <div className="gta-menu absolute inset-0 z-30 flex items-center justify-center bg-black/55 backdrop-blur-md">
       {view === 'main' && (
         <div className="gta-panel w-[min(420px,90vw)] rounded-2xl border border-white/15 bg-black/60 p-7 text-white shadow-2xl">
           <h2 className="mb-1 text-3xl font-black uppercase tracking-[0.25em]">Paused</h2>
-          <div className="mb-5 text-xs uppercase tracking-[0.3em] text-white/45">Cash ${h.money.toLocaleString()} · Kills {h.kills}</div>
+          <div className="mb-5 text-xs uppercase tracking-[0.3em] text-white/45">
+            Cash ${h.money.toLocaleString()} · {h.career.rank} · {h.career.xp.toLocaleString()} XP
+          </div>
           <div className="flex flex-col gap-2.5">
             {[
               ['Resume', () => game.resume()],
+              ['Career & Empire', () => setView('career')],
               ['Controls', () => setView('controls')],
               ['Settings', () => setView('settings')],
               ...(h.mission ? ([['Abandon job', () => { game.abandonMission(); game.resume(); }]] as [string, () => void][]) : []),
