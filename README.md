@@ -8,6 +8,9 @@ Everything is rendered in real time with custom vehicle soft-body damage, ragdol
 physics, procedural WebAudio, a day/night cycle, traffic AI, pedestrian AI, cop
 pursuits, a helicopter, cutscenes and a minimap.
 
+**Play the published build:** https://meridian-city-iota.vercel.app
+(add `?touch=1` to force the on-screen controls on a desktop).
+
 ---
 
 ## Run it
