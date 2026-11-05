@@ -6,27 +6,29 @@ export const fmtMinutes = (s: number) => `${Math.floor(s / 60)}m ${String(Math.f
 export const fmtDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
 
 /** Compact rank + XP readout that lives under the wanted stars in the HUD. */
-export function RankReadout({ h }: { h: Hud }) {
+export function RankReadout({ h, compact = false }: { h: Hud; compact?: boolean }) {
   const c = h.career;
   const toGo = Math.max(0, c.xpNeed - c.xpInto);
   return (
-    <div className="mt-2 flex w-56 flex-col items-end gap-1">
+    <div className={`${compact ? 'mt-1 flex w-32 flex-col items-end gap-0.5' : 'mt-2 flex w-56 flex-col items-end gap-1'}`}>
       <div className="flex items-baseline gap-2">
         <span className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-300/80">Rank {c.rankIndex + 1}</span>
-        <span className="text-sm font-black uppercase tracking-wider text-white/90">{c.rank}</span>
+        <span className={`${compact ? 'text-[10px]' : 'text-sm'} font-black uppercase tracking-wider text-white/90`}>{c.rank}</span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full border border-white/15 bg-black/60">
+      <div className={`${compact ? 'h-1.5' : 'h-2'} w-full overflow-hidden rounded-full border border-white/15 bg-black/60`}>
         <div
           className="h-full rounded-full bg-gradient-to-r from-amber-300 via-orange-400 to-pink-500 transition-[width] duration-300"
           style={{ width: `${Math.round(c.progress * 100)}%` }}
         />
       </div>
-      <div className="text-[10px] font-semibold tracking-wider text-white/55">
-        {c.nextRank ? `${c.xp.toLocaleString()} XP · ${toGo} to ${c.nextRank}` : `${c.xp.toLocaleString()} XP · MAX RANK`}
-      </div>
+      {!compact && (
+        <div className="text-[10px] font-semibold tracking-wider text-white/55">
+          {c.nextRank ? `${c.xp.toLocaleString()} XP · ${toGo} to ${c.nextRank}` : `${c.xp.toLocaleString()} XP · MAX RANK`}
+        </div>
+      )}
       {c.incomeRate > 0 && (
         <div className="text-[10px] font-bold tracking-wider text-emerald-300/80">
-          ▲ ${c.incomeRate.toLocaleString()}/min · next in {c.incomeIn}s
+          {compact ? `▲ $${c.incomeRate.toLocaleString()}/min` : `▲ $${c.incomeRate.toLocaleString()}/min · next in ${c.incomeIn}s`}
         </div>
       )}
     </div>

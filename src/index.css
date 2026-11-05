@@ -1,9 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
-html, body, #root { margin: 0; height: 100%; background: #000; overflow: hidden; }
+html, body, #root {
+  margin: 0; height: 100%; background: #000; overflow: hidden;
+  /* Prevent scroll/zoom/pinch gestures from stealing touches from the game. */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 body { font-family: 'Rajdhani', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 canvas { outline: none; }
+[data-touch-ui] { -webkit-tap-highlight-color: transparent; }
+[data-touch-ui] button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 
 .gta-title {
   background: linear-gradient(180deg, #fff3b0 0%, #ffb347 30%, #ff4d8d 65%, #8b2fff 100%);

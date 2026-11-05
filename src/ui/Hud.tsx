@@ -3,11 +3,11 @@ import type { Game, Hud } from '../game/Game';
 import { ControlsPanel, SettingsPanel } from './Menu';
 import { CareerPanel, RankReadout, RankUpBanner } from './Career';
 
-function Stars({ n, flash }: { n: number; flash: boolean }) {
+function Stars({ n, flash, compact = false }: { n: number; flash: boolean; compact?: boolean }) {
   return (
     <div className="flex gap-1">
       {[0, 1, 2, 3, 4].map((i) => (
-        <svg key={i} viewBox="0 0 24 24" className={`h-7 w-7 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${i < n ? (flash ? 'gta-flash' : '') : ''}`}>
+        <svg key={i} viewBox="0 0 24 24" className={`${compact ? 'h-4 w-4' : 'h-7 w-7'} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${i < n ? (flash ? 'gta-flash' : '') : ''}`}>
           <path
             d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.2l7.1-.6z"
             fill={i < n ? '#ffd23f' : 'rgba(255,255,255,0.08)'}
@@ -73,46 +73,53 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
       {!cut && !h.wasted && (
         <>
           {/* top right */}
-          <div className="absolute right-6 top-5 flex flex-col items-end gap-1">
+          <div className={h.touch ? 'absolute right-3 top-3 flex flex-col items-end gap-0.5' : 'absolute right-6 top-5 flex flex-col items-end gap-1'}>
             <div className="text-sm font-bold tracking-[0.25em] text-white/80 drop-shadow">{h.clock}</div>
-            <div className="text-[42px] font-black leading-none tracking-wide text-emerald-300 drop-shadow-[0_3px_0_rgba(0,0,0,0.6)]">${h.money.toLocaleString()}</div>
-            <Stars n={h.stars} flash={h.evading} />
-            {h.stars > 0 && <div className={`text-[11px] font-bold uppercase tracking-[0.3em] ${h.evading ? 'gta-flash text-sky-300' : 'text-amber-200'}`}>{h.evading ? 'Evading police…' : h.wantedLevelName}</div>}
-            <RankReadout h={h} />
+            <div className={`${h.touch ? 'text-2xl' : 'text-[42px]'} font-black leading-none tracking-wide text-emerald-300 drop-shadow-[0_3px_0_rgba(0,0,0,0.6)]`}>${h.money.toLocaleString()}</div>
+            <Stars n={h.stars} flash={h.evading} compact={h.touch} />
+            {h.stars > 0 && <div className={`${h.touch ? 'text-[9px]' : 'text-[11px]'} font-bold uppercase tracking-[0.3em] ${h.evading ? 'gta-flash text-sky-300' : 'text-amber-200'}`}>{h.evading ? 'Evading police…' : h.wantedLevelName}</div>}
+            <RankReadout h={h} compact={h.touch} />
           </div>
 
           {/* mission */}
           {h.mission && (
-            <div className="absolute left-6 top-5 w-[min(420px,60vw)] rounded-xl border-l-4 border-amber-300 bg-black/55 px-4 py-3 backdrop-blur-sm">
+            <div className={
+              h.touch
+                ? 'absolute left-[124px] top-3 w-[min(260px,48vw)] rounded-xl border-l-4 border-amber-300 bg-black/55 px-2.5 py-2 backdrop-blur-sm'
+                : 'absolute left-6 top-5 w-[min(420px,60vw)] rounded-xl border-l-4 border-amber-300 bg-black/55 px-4 py-3 backdrop-blur-sm'
+            }>
               <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-amber-300">{h.mission.title}</div>
-              <div className="mt-0.5 text-lg font-semibold leading-tight">{h.mission.objective}</div>
+              <div className={`${h.touch ? 'text-sm' : 'text-lg'} mt-0.5 font-semibold leading-tight`}>{h.mission.objective}</div>
               {h.mission.timer !== undefined && (
-                <div className={`mt-1 font-mono text-2xl font-bold ${h.mission.timer < 15 ? 'gta-flash text-red-400' : 'text-white'}`}>{fmtTime(h.mission.timer)}</div>
+                <div className={`mt-1 font-mono ${h.touch ? 'text-lg' : 'text-2xl'} font-bold ${h.mission.timer < 15 ? 'gta-flash text-red-400' : 'text-white'}`}>{fmtTime(h.mission.timer)}</div>
               )}
             </div>
           )}
 
           {/* toasts */}
-          <div className="absolute left-6 flex flex-col gap-1.5" style={{ top: h.mission ? 150 : 24 }}>
+          <div className={`absolute flex flex-col gap-1.5 ${h.touch ? 'left-3' : 'left-6'}`} style={{ top: h.touch ? 168 : h.mission ? 150 : 24 }}>
             {h.toasts.map((t) => (
               <div key={t.id} className="gta-toast rounded-md bg-black/60 px-3 py-1.5 text-base font-semibold tracking-wide backdrop-blur-sm">{t.text}</div>
             ))}
           </div>
 
           {/* minimap */}
-          <div className="absolute bottom-6 left-6 flex flex-col gap-2">
-            <div className="relative h-[220px] w-[220px] overflow-hidden rounded-full border-[3px] border-white/70 bg-[#0e1a2b] shadow-[0_0_0_3px_rgba(0,0,0,0.5),0_8px_30px_rgba(0,0,0,0.6)]">
+          <div className={h.touch ? 'absolute left-3 top-3 flex flex-col gap-1' : 'absolute bottom-6 left-6 flex flex-col gap-2'}>
+            <div className={`relative overflow-hidden rounded-full border-[3px] border-white/70 bg-[#0e1a2b] shadow-[0_0_0_3px_rgba(0,0,0,0.5),0_8px_30px_rgba(0,0,0,0.6)] ${h.touch ? 'h-[112px] w-[112px]' : 'h-[220px] w-[220px]'}`}>
               <canvas ref={minimapRef} width={220} height={220} className="h-full w-full" />
               <div className="absolute left-1/2 top-1 -translate-x-1/2 text-[10px] font-black text-white/70">N</div>
             </div>
-            <div className="ml-2 flex flex-col gap-1">
-              <Bar v={h.hp} color="linear-gradient(90deg,#ff3b57,#ff7a5c)" label="HP" />
-              {h.armor > 0 && <Bar v={h.armor} color="linear-gradient(90deg,#2d8cff,#6fc3ff)" label="AR" />}
-              {(h.bullet < 100 || h.bulletOn) && <Bar v={h.bullet} color={h.bulletOn ? 'linear-gradient(90deg,#a855f7,#38bdf8)' : 'linear-gradient(90deg,#64748b,#94a3b8)'} label="SLO" />}
-            </div>
+            {!h.touch && (
+              <div className="ml-2 flex flex-col gap-1">
+                <Bar v={h.hp} color="linear-gradient(90deg,#ff3b57,#ff7a5c)" label="HP" />
+                {h.armor > 0 && <Bar v={h.armor} color="linear-gradient(90deg,#2d8cff,#6fc3ff)" label="AR" />}
+                {(h.bullet < 100 || h.bulletOn) && <Bar v={h.bullet} color={h.bulletOn ? 'linear-gradient(90deg,#a855f7,#38bdf8)' : 'linear-gradient(90deg,#64748b,#94a3b8)'} label="SLO" />}
+              </div>
+            )}
           </div>
 
-          {/* weapon / speed */}
+          {/* weapon / speed — the touch overlay shows a compact version instead */}
+          {!h.touch && (
           <div className="absolute bottom-6 right-6 flex flex-col items-end gap-3">
             {h.inVehicle && (
               <div className="flex flex-col items-end">
@@ -149,10 +156,11 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
               </div>
             )}
           </div>
+          )}
 
           {/* prompt */}
           {h.prompt && (
-            <div className="absolute inset-x-0 flex justify-center" style={{ bottom: '27%' }}>
+            <div className="absolute inset-x-0 flex justify-center" style={{ bottom: h.touch ? '48%' : '27%' }}>
               <div className="gta-toast rounded-lg border border-amber-300/50 bg-black/65 px-5 py-2 text-lg font-bold tracking-wide backdrop-blur-sm">
                 {h.prompt.split('  ').map((s, i) => (i === 0 ? <kbd key={i} className="mr-3 rounded border border-white/40 bg-white/15 px-2 py-0.5 text-amber-200">{s}</kbd> : <span key={i}>{s}</span>))}
               </div>
@@ -177,7 +185,7 @@ export function HudView({ h, minimapRef }: { h: Hud; minimapRef: (c: HTMLCanvasE
               </div>
             </div>
           )}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] tracking-widest text-white/30">{h.fps} FPS · V camera · T bullet time</div>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] tracking-widest text-white/30">{h.fps} FPS{h.touch ? '' : ' · V camera · T bullet time'}</div>
         </>
       )}
 

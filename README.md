@@ -52,6 +52,25 @@ keyboard and mouse are required.
 | `N` | Radio |
 | `P` / `Esc` | Pause → **Career & Empire** |
 
+### Touch / mobile controls
+
+On phones and tablets the game automatically switches to an on-screen control
+scheme (no pointer lock, compact HUD, and a lighter default graphics preset):
+
+- **Left stick** — walk / drive with analog steering and throttle
+- **Drag anywhere else** — look around / aim the camera (multi-touch: you can
+  drag and hold buttons at the same time)
+- **Fire** (hold) — shoot; holding repeats semi-automatic weapons
+- **Aim**, **Jump / handbrake**, **Run**, **E** (enter vehicle / start job / exit
+  vehicle) and **F** (interact while driving) action buttons
+- Small utility buttons for reload, weapon cycling, horn, camera, bullet time,
+  map zoom and pause
+- Cutscenes have a **Skip** button
+
+Touch controls can be forced on/off in **Settings → Touch controls**, or with
+`?touch=1` / `?touch=0` in the URL — useful for trying the mobile layout on a
+desktop. `npm test` includes headless checks for the virtual input layer.
+
 ---
 
 ## What's in the game
@@ -97,6 +116,7 @@ src/
     Menu.tsx                         main menu, controls, settings
     Hud.tsx                          HUD, pause menu, shop
     Career.tsx                       career/empire/awards UI
+    Touch.tsx                        virtual stick, look surface, action buttons
   game/
     Game.ts                          engine, main loop, save, HUD state
     career.ts                        ranks, perks, achievements, properties

@@ -132,12 +132,14 @@ export class Player {
     this.aiming = inp.mouse[2] && !g.cutscene;
     const cy = g.camYaw;
     const live = g.cutscene ? 0 : 1;
-    const fwd = ((inp.k('KeyW') ? 1 : 0) - (inp.k('KeyS') ? 1 : 0)) * live;
-    const str = ((inp.k('KeyA') ? 1 : 0) - (inp.k('KeyD') ? 1 : 0)) * live;
+    // moveFwd / moveStr combine keyboard keys with the analog virtual stick.
+    const fwd = inp.moveFwd * live;
+    const str = inp.moveStr * live;
     let wx = Math.sin(cy) * fwd + Math.cos(cy) * str;
     let wz = Math.cos(cy) * fwd - Math.sin(cy) * str;
     const wl = Math.hypot(wx, wz);
-    if (wl > 0) { wx /= wl; wz /= wl; }
+    // Clamp diagonals to unit length, but preserve partial analog magnitude.
+    if (wl > 1) { wx /= wl; wz /= wl; }
     const sprint = inp.k('ShiftLeft') && !this.aiming && wl > 0;
     const maxSp = this.aiming ? 2.8 : sprint ? 7.8 : 4.4;
     this.vx = damp(this.vx, wx * maxSp, 11, dt);
@@ -346,9 +348,9 @@ export class Player {
     this.x = v.x; this.z = v.z; this.y = 0;
     this.ch.group.visible = false;
     if (g.cutscene) { v.throttle = 0; v.brake = 0.5; return; }
-    v.throttle = (inp.k('KeyW') ? 1 : 0) - (inp.k('KeyS') ? 1 : 0);
+    v.throttle = inp.moveFwd;
     v.brake = inp.k('KeyW') && inp.k('KeyS') ? 1 : 0;
-    const target = (inp.k('KeyA') ? 1 : 0) - (inp.k('KeyD') ? 1 : 0);
+    const target = inp.moveStr;
     v.steer = damp(v.steer, target, target === 0 ? 9 : 6, dt);
     v.hand = inp.k('Space') ? 1 : 0;
     if (inp.p('KeyH')) g.honk(v, true);

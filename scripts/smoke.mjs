@@ -19,6 +19,7 @@ await build({
     contents: `
       export { Career, RANKS, ACHIEVEMENTS, PROPERTIES, INCOME_PERIOD } from './src/game/career.ts';
       export { JOBS, JOB_SPOTS, SERVICE_SPOTS } from './src/game/missions.ts';
+      export { Input, settings, touchEnabled } from './src/game/util.ts';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -30,7 +31,7 @@ await build({
   logLevel: 'silent',
 });
 
-const { Career, RANKS, ACHIEVEMENTS, PROPERTIES, INCOME_PERIOD, JOBS, JOB_SPOTS, SERVICE_SPOTS } =
+const { Career, RANKS, ACHIEVEMENTS, PROPERTIES, INCOME_PERIOD, JOBS, JOB_SPOTS, SERVICE_SPOTS, Input, settings, touchEnabled } =
   await import(pathToFileURL(out).href);
 
 let passed = 0;
@@ -146,6 +147,76 @@ check('the HUD view is complete and bounded', () => {
   assert.equal(v.achievements.length, ACHIEVEMENTS.length);
   assert.ok(v.rank && v.perks.maxHp >= 100);
   assert.equal(v.nextRank, RANKS[v.rankIndex + 1]?.name ?? null);
+});
+
+// ---------------------------------------------------------------- touch input
+// Construct without the DOM listener setup (only the pure input API is tested).
+const makeInput = () => Object.assign(Object.create(Input.prototype), {
+  down: new Set(), pressed: new Set(), mouse: [false, false, false], mousePressed: [false, false, false],
+  mdx: 0, mdy: 0, wheel: 0, moveX: 0, moveY: 0, touchMode: false, noLock: false,
+  locked: false, enabled: true,
+});
+
+check('touch mode disables pointer lock and enables camera drags', () => {
+  const i = makeInput();
+  i.setTouchMode(true);
+  assert.equal(i.touchMode, true);
+  assert.equal(i.noLock, true);
+  i.lock(); // must not throw or attempt pointer lock
+  assert.equal(i.locked, false);
+});
+
+check('analog stick axes combine with keyboard keys', () => {
+  const i = makeInput();
+  i.setMove(0.5, -0.8);
+  assert.equal(i.moveFwd, -0.8);
+  assert.equal(i.moveStr, 0.5);
+  i.down.add('KeyW');
+  assert.ok(Math.abs(i.moveFwd - 0.2) < 1e-9);
+  i.down.add('KeyD');
+  assert.ok(Math.abs(i.moveStr + 0.5) < 1e-9);
+  i.down.clear();
+  i.setMove(2, -2); // clamped
+  assert.equal(i.moveFwd, -1);
+  assert.equal(i.moveStr, 1);
+});
+
+check('touch key / mouse / look injection matches the game API', () => {
+  const i = makeInput();
+  i.setTouchMode(true);
+  i.addLook(12, -6);
+  assert.equal(i.mdx, 12);
+  assert.equal(i.mdy, -6);
+  i.pressKey('Space');
+  assert.ok(i.k('Space') && i.p('Space'));
+  i.releaseKey('Space');
+  assert.ok(!i.k('Space'));
+  i.tapKey('KeyR');
+  assert.ok(i.p('KeyR') && !i.k('KeyR'));
+  i.pressMouse(0);
+  assert.ok(i.mouse[0] && i.mousePressed[0]);
+  i.releaseMouse(0);
+  assert.ok(!i.mouse[0]);
+  i.endFrame();
+  assert.equal(i.mdx, 0);
+  assert.equal(i.wheel, 0);
+  assert.ok(!i.p('KeyR'));
+});
+
+check('held touch fire repeats semi-auto shots once per frame', () => {
+  const i = makeInput();
+  i.setTouchMode(true);
+  i.pressMouse(0);
+  i.endFrame();
+  assert.equal(i.mousePressed[0], true);
+  i.releaseMouse(0);
+  i.endFrame();
+  assert.equal(i.mousePressed[0], false);
+});
+
+check('touch settings default to auto on non-touch environments', () => {
+  assert.equal(settings.touch, 'auto');
+  assert.equal(touchEnabled(), false);
 });
 
 await rm(dir, { recursive: true, force: true });

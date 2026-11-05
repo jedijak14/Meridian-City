@@ -37,6 +37,12 @@ export function ControlsPanel({ onBack }: { onBack: () => void }) {
         by breaking line of sight, or visit a Pay 'n' Spray. Pause with <b className="text-white/80">Esc</b> to open <b className="text-white/80">Career &amp; Empire</b>:
         ranks, achievements and businesses that pay you while you play.
       </p>
+      <p className="mt-3 text-xs leading-relaxed text-white/50">
+        <b className="text-white/80">On touch screens:</b> drag the left stick to move / steer, drag anywhere else to look around,
+        hold <b className="text-white/80">Fire</b> to shoot and <b className="text-white/80">Aim</b> to aim. The small buttons cover
+        jump/handbrake, sprint, reload, entering vehicles &amp; starting jobs, weapon switching, camera, bullet time, map and pause.
+        Cutscenes can be skipped with the on-screen button.
+      </p>
     </Panel>
   );
 }
@@ -80,6 +86,23 @@ export function SettingsPanel({ game, onBack }: { game: Game | null; onBack: () 
         ))}
       </div>
       <p className="mb-3 text-xs text-white/45">Lower quality reduces resolution, shadows, traffic and pedestrian density. If the game runs slowly, try Low or Medium.</p>
+      <div className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-white/50">Touch controls</div>
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        {(['auto', 'on', 'off'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => { settings.touch = t; upd(); }}
+            className={`rounded-lg border px-2 py-2.5 text-sm font-bold uppercase tracking-wider transition ${
+              settings.touch === t ? 'border-amber-300 bg-amber-300/20 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.35)]' : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      <p className="mb-3 text-xs text-white/45">
+        Auto shows the on-screen stick and buttons on phones/tablets. Force them on with <b className="text-white/70">On</b> (or add <b className="text-white/70">?touch=1</b> to the URL) to try them on a desktop.
+      </p>
       <Slider label="Field of view" value={settings.fov} min={55} max={100} step={1} fmt={(v) => `${v}°`} onChange={(v) => { settings.fov = v; upd(); }} />
       <Slider label="Mouse sensitivity" value={settings.sens} min={0.3} max={2.5} step={0.05} fmt={(v) => `${v.toFixed(2)}x`} onChange={(v) => { settings.sens = v; upd(); }} />
       <Slider label="Master volume" value={settings.volume} min={0} max={1} step={0.05} fmt={(v) => `${Math.round(v * 100)}%`} onChange={(v) => { settings.volume = v; upd(); game?.audio.setVolume(v); }} />
@@ -178,7 +201,7 @@ export function MainMenu({ game, hasSave, onNew, onContinue, ready }: { game: Ga
           <div className="flex flex-wrap gap-x-6 gap-y-1">
             <span>◆ 13 weapons</span><span>◆ 9 job types</span><span>◆ Career ranks</span><span>◆ Achievements</span><span>◆ Real estate</span><span>◆ Bullet time</span>
           </div>
-          <div>Career Update • v1.1</div>
+          <div>Touch Edition • v1.2</div>
         </div>
       </div>
     </div>

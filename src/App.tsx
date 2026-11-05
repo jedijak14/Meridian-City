@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game, Hud } from './game/Game';
+import { touchEnabled } from './game/util';
 import { MainMenu } from './ui/Menu';
 import { HudView, PauseMenu, Shop } from './ui/Hud';
+import { TouchControls } from './ui/Touch';
 
 export default function App() {
   const mount = useRef<HTMLDivElement>(null);
@@ -9,6 +11,7 @@ export default function App() {
   const [game, setGame] = useState<Game | null>(null);
   const [hud, setHud] = useState<Hud | null>(null);
   const [error, setError] = useState('');
+  const [touch, setTouch] = useState(touchEnabled);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +40,21 @@ export default function App() {
     };
   }, []);
 
+  // Settings changes can turn touch controls on/off at runtime (also ?touch=1 on desktop).
+  useEffect(() => {
+    const update = () => setTouch(touchEnabled());
+    window.addEventListener('meridian:settings', update);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('meridian:settings', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle('touch-mode', touch);
+    if (game) game.setTouchMode(touch);
+  }, [game, touch]);
+
   const minimapRef = useCallback((c: HTMLCanvasElement | null) => {
     gameRef.current?.attachMinimap(c);
   }, []);
@@ -56,6 +74,7 @@ export default function App() {
         </div>
       )}
       {game && hud && state !== 'menu' && <HudView h={hud} minimapRef={minimapRef} />}
+      {game && hud && touch && state === 'playing' && <TouchControls game={game} h={hud} />}
       {state === 'menu' && (
         <MainMenu
           game={game}

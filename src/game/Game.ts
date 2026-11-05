@@ -33,7 +33,7 @@ export interface Hud {
   crosshair: boolean; firstPerson: boolean; hit: number; kills: number; mapZoom: number; fps: number;
   shop: { id: string; name: string; desc: string; price: number; owned: boolean; ammoPrice: number; ammo: number }[] | null;
   weaponsOwned: { id: string; name: string; cur: boolean }[]; radio: boolean; wantedLevelName: string;
-  career: CareerView;
+  career: CareerView; touch: boolean;
 }
 
 const QUAL = {
@@ -355,6 +355,15 @@ export class Game {
   toggleRadio() {
     this.radio = !this.radio;
     if (this.radio) this.audio.startMusic(104); else this.audio.stopMusic();
+  }
+  /** Called by the React shell when touch controls are enabled/disabled. */
+  setTouchMode(on: boolean) {
+    this.input.setTouchMode(on);
+    if (!on) {
+      this.input.setMove(0, 0);
+      this.input.releaseMouse(0);
+      this.input.releaseMouse(2);
+    }
   }
   dispose() {
     this.disposed = true;
@@ -1527,7 +1536,7 @@ export class Game {
       shop: this.state === 'shop' ? this.shopItems() : null,
       weaponsOwned: pl.owned.map((id) => ({ id, name: WMAP[id].name, cur: id === pl.cur })), radio: this.audio.radioOn,
       wantedLevelName: names[this.stars],
-      career: this.career.view(),
+      career: this.career.view(), touch: this.input.touchMode,
     };
   }
 }

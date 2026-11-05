@@ -31,8 +31,26 @@ export interface SettingsT {
   fov: number;
   volume: number;
   music: boolean;
+  /** 'auto' shows touch controls on touch devices; 'on'/'off' force them. */
+  touch: 'auto' | 'on' | 'off';
 }
-const defaults: SettingsT = { quality: 'high', sens: 1, fov: 70, volume: 0.7, music: true };
+const defaults: SettingsT = { quality: 'high', sens: 1, fov: 70, volume: 0.7, music: true, touch: 'auto' };
+
+export const isCoarsePointer = () =>
+  typeof window !== 'undefined' &&
+  (!!window.matchMedia?.('(pointer: coarse)').matches || (navigator.maxTouchPoints || 0) > 0);
+
+/** Should the on-screen touch controls be shown? URL ?touch=1 / ?touch=0 overrides settings. */
+export function touchEnabled() {
+  if (typeof window === 'undefined') return false;
+  const q = new URLSearchParams(window.location.search).get('touch');
+  if (q === '1' || q === 'on') return true;
+  if (q === '0' || q === 'off') return false;
+  if (settings.touch === 'on') return true;
+  if (settings.touch === 'off') return false;
+  return isCoarsePointer();
+}
+
 export const settings: SettingsT = (() => {
   try {
     const s = localStorage.getItem('meridian_settings');
@@ -40,7 +58,8 @@ export const settings: SettingsT = (() => {
   } catch {
     /* ignore */
   }
-  return { ...defaults };
+  // Phones/tablets start on the lightest preset for a playable frame rate.
+  return { ...defaults, quality: isCoarsePointer() ? 'low' : defaults.quality };
 })();
 export const saveSettings = () => {
   try {
@@ -48,6 +67,7 @@ export const saveSettings = () => {
   } catch {
     /* ignore */
   }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('meridian:settings'));
 };
 
 export class Input {
@@ -61,7 +81,58 @@ export class Input {
   locked = false;
   noLock = false;
   enabled = false;
+  /** True when the on-screen touch controls are driving input instead of a mouse/keyboard. */
+  touchMode = false;
+  /** Analog axes from the virtual stick: x = strafe, y = forward, both -1..1. */
+  moveX = 0;
+  moveY = 0;
   private cleanup: (() => void)[] = [];
+
+  get moveFwd() {
+    const digital = (this.k('KeyW') ? 1 : 0) - (this.k('KeyS') ? 1 : 0);
+    return clamp((this.moveY || 0) + digital, -1, 1);
+  }
+  get moveStr() {
+    const digital = (this.k('KeyA') ? 1 : 0) - (this.k('KeyD') ? 1 : 0);
+    return clamp((this.moveX || 0) + digital, -1, 1);
+  }
+
+  setTouchMode(on: boolean) {
+    this.touchMode = on;
+    if (on) {
+      // Touch devices can't use pointer lock; noLock also lets camera drags work
+      // and prevents the "pointer lock lost" auto-pause.
+      this.noLock = true;
+      this.unlock();
+    }
+  }
+  setMove(x: number, y: number) {
+    this.moveX = clamp(x, -1, 1);
+    this.moveY = clamp(y, -1, 1);
+  }
+  addLook(dx: number, dy: number) {
+    this.mdx += dx;
+    this.mdy += dy;
+  }
+  /** Press a virtual key (adds both held + just-pressed state for one frame). */
+  pressKey(code: string) {
+    this.down.add(code);
+    this.pressed.add(code);
+  }
+  releaseKey(code: string) {
+    this.down.delete(code);
+  }
+  /** One-shot key press (does not stay held down). */
+  tapKey(code: string) {
+    this.pressed.add(code);
+  }
+  pressMouse(button: number) {
+    this.mouse[button] = true;
+    this.mousePressed[button] = true;
+  }
+  releaseMouse(button: number) {
+    this.mouse[button] = false;
+  }
 
   constructor(public el: HTMLElement) {
     const on = <K extends keyof WindowEventMap>(t: K, f: (e: WindowEventMap[K]) => void, target: any = window) => {
@@ -86,6 +157,9 @@ export class Input {
     });
     on('mousedown', (e) => {
       if (!this.enabled) return;
+      // Compatibility mouse events fired by a tap on an on-screen button must not
+      // also count as "fire" / "aim" in the game.
+      if ((e.target as HTMLElement | null)?.closest?.('[data-touch-ui]')) return;
       this.mouse[e.button] = true;
       this.mousePressed[e.button] = true;
     });
@@ -94,6 +168,7 @@ export class Input {
     });
     on('wheel', (e) => {
       if (!this.enabled) return;
+      if ((e.target as HTMLElement | null)?.closest?.('[data-touch-ui]')) return;
       this.wheel += Math.sign(e.deltaY);
     });
     on('contextmenu', (e) => e.preventDefault());
@@ -117,6 +192,10 @@ export class Input {
     );
   }
   lock() {
+    if (this.touchMode) {
+      this.noLock = true;
+      return;
+    }
     try {
       const p: any = (this.el as any).requestPointerLock?.();
       if (p && p.catch) p.catch(() => (this.noLock = true));
@@ -125,7 +204,7 @@ export class Input {
     }
   }
   unlock() {
-    if (document.pointerLockElement) document.exitPointerLock?.();
+    if (typeof document !== 'undefined' && document.pointerLockElement) document.exitPointerLock?.();
   }
   k(code: string) {
     return this.down.has(code);
@@ -139,6 +218,9 @@ export class Input {
     this.mdy = 0;
     this.wheel = 0;
     this.mousePressed = [false, false, false];
+    // Holding the on-screen fire button should repeat-fire semi-automatic weapons,
+    // just like rapid tapping would on a mouse.
+    if (this.touchMode && this.mouse[0]) this.mousePressed[0] = true;
   }
   dispose() {
     this.cleanup.forEach((f) => f());
