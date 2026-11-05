@@ -158,7 +158,7 @@ function MenuButton({ i, label, sub, onClick, disabled }: { i: number; label: st
   );
 }
 
-export function MainMenu({ game, hasSave, onNew, onContinue, ready }: { game: Game | null; hasSave: boolean; onNew: () => void; onContinue: () => void; ready: boolean }) {
+export function MainMenu({ game, hasSave, onNew, onContinue, ready, touch = false }: { game: Game | null; hasSave: boolean; onNew: () => void; onContinue: () => void; ready: boolean; touch?: boolean }) {
   const [view, setView] = useState<'splash' | 'main' | 'controls' | 'settings'>('splash');
   return (
     <div className="gta-menu absolute inset-0 z-30 flex select-none overflow-hidden text-white" onClick={() => { if (view === 'splash' && ready) { game?.menuMusic(); setView('main'); } }}>
@@ -178,11 +178,12 @@ export function MainMenu({ game, hasSave, onNew, onContinue, ready }: { game: Ga
         <div className="flex flex-1 items-center py-6">
           {view === 'splash' && (
             <div className="gta-fade mt-10 flex flex-col gap-3">
-              <div className="gta-pulse text-lg font-bold uppercase tracking-[0.4em] text-amber-200">{ready ? 'Click anywhere to start' : 'Generating city…'}</div>
+              <div className="gta-pulse text-lg font-bold uppercase tracking-[0.4em] text-amber-200">{ready ? (touch ? 'Tap anywhere to start' : 'Click anywhere to start') : 'Generating city…'}</div>
               <div className="h-1 w-64 overflow-hidden rounded bg-white/10">
                 <div className={`h-full bg-gradient-to-r from-amber-300 to-pink-500 transition-all duration-700 ${ready ? 'w-full' : 'w-1/3 animate-pulse'}`} />
               </div>
-              <div className="text-xs text-white/45">Best experienced fullscreen with a mouse and keyboard • Sound on</div>
+              {touch && <div className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-300/80">◆ Touch controls active</div>}
+              <div className="text-xs text-white/45">{touch ? 'Play with the on-screen stick and buttons' : 'Best experienced fullscreen with a mouse and keyboard'} • Sound on</div>
             </div>
           )}
           {view === 'main' && (

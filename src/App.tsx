@@ -82,6 +82,7 @@ export default function App() {
           hasSave={Game.hasSave()}
           onNew={() => game?.startNewGame()}
           onContinue={() => game?.continueGame()}
+          touch={touch}
         />
       )}
       {game && hud && state === 'paused' && <PauseMenu game={game} h={hud} />}
